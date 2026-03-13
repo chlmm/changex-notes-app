@@ -1,0 +1,46 @@
+# ===== Go 后端 =====
+# 编译产物
+notes-server/notes-server
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# 测试文件
+*.test
+*.out
+coverage.txt
+
+# Go workspace
+go.work
+
+# ===== 前端 =====
+# 依赖
+notes-web/node_modules/
+
+# 构建产物（部署时构建）
+notes-web/dist/
+
+# 临时文件
+*.timestamp-*.mjs
+
+# 日志
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===== 编辑器/IDE =====
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ===== 系统文件 =====
+.DS_Store
+Thumbs.db
+
+# ===== 环境变量（如需保密可取消注释）=====
+# .env
+# .env.local
+# .env.*.local
