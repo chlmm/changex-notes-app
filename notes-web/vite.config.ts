@@ -28,6 +28,7 @@ export default defineConfig({
     port: 3000,
     allowedHosts: [
       '.cloudstudio.club',
+      '.cloudstudio.work',
       'localhost',
     ],
     // 让浏览器自动检测 WebSocket 连接地址
