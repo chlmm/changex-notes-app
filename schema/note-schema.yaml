@@ -1,0 +1,424 @@
+# =============================================================
+# Changex Notes - Schema 配置文件
+# =============================================================
+# 原则：数据文件是 source of truth，schema 只做最少必要补充。
+#   - 字段名、字段类型（string/number/array/bool）会自动从
+#     文件的 YAML frontmatter 中读取，无需在此重复定义。
+#   - 这里只写文件无法自动表达的信息：
+#     label（中文显示名）、ui（渲染方式）、options（可选值枚举）、
+#     文件扫描路径、列表展示列等。
+# =============================================================
+
+meta:
+  version: "1.0"
+  name: "Changex Notes"
+  description: "个人知识管理系统 - PARA 变体"
+
+# -------- 顶层分组 --------
+categories:
+  - id: resource
+    label: 资源库
+    icon: "Collection"
+    desc: "外部资源（书籍、视频、项目参考等）"
+  - id: collection
+    label: 收藏夹
+    icon: "Star"
+    desc: "结构化收藏（动漫、游戏、电影、GitHub、名言）"
+  - id: project
+    label: 项目
+    icon: "FolderOpened"
+    desc: "问题解决与任务跟踪"
+  - id: knowledge
+    label: 知识库
+    icon: "Reading"
+    desc: "长期积累的领域知识"
+  - id: skill
+    label: 技能
+    icon: "Setting"
+    desc: "AI 技能与用户指南"
+
+# -------- 笔记类型定义 --------
+types:
+
+  # =============================================================
+  # 资源库 - 书籍
+  # =============================================================
+  - id: book
+    label: "书籍"
+    icon: "Reading"
+    category: resource
+    path:
+      scan: "Resource/Book/**/index.md"        # glob 扫描模式
+      depth: 3                                  # 扫描深度
+    # 子文件（每个条目下的附属文件）
+    sub_files:
+      - name: quotes
+        label: "金句"
+        pattern: "quotes.md"
+      - name: reviews
+        label: "书评"
+        pattern: "reviews.md"
+    # 字段渲染提示（只写需要特殊 UI 的字段，其余自动推断）
+    field_hints:
+      rating:       { label: "评分", ui: star, min: 0, max: 5 }
+      status:       { label: "状态", ui: select, options: ["未开始", "阅读中", "已完成", "已解读"] }
+      category:     { label: "分类", ui: select }
+      tags:         { label: "标签", ui: tags }
+      created:      { label: "创建日期", ui: date }
+      cover:        { label: "封面", ui: image }
+    # 列表页展示列
+    list_columns: ["title", "author", "category", "status", "tags", "created"]
+
+  # =============================================================
+  # 资源库 - 视频
+  # =============================================================
+  - id: video
+    label: "视频"
+    icon: "VideoCamera"
+    category: resource
+    path:
+      scan: "Resource/Vedio/*/index.md"
+      depth: 2
+    sub_files:
+      - name: subtitle
+        label: "字幕"
+        pattern: "subtitle.lrc"
+    field_hints:
+      url:          { label: "链接", ui: link }
+      video_id:     { label: "视频 ID", ui: text }
+      platform:     { label: "平台", ui: select }
+      status:       { label: "状态", ui: select, options: ["未开始", "观看中", "已看完", "已解读"] }
+      tags:         { label: "标签", ui: tags }
+      created:      { label: "创建日期", ui: date }
+    list_columns: ["title", "platform", "status", "tags", "created"]
+
+  # =============================================================
+  # 资源库 - 项目学习
+  # =============================================================
+  - id: project_learning
+    label: "项目学习"
+    icon: "Monitor"
+    category: resource
+    path:
+      scan: "Resource/Project/*/index.md"
+      depth: 2
+    sub_files:
+      - name: readme
+        label: "README"
+        pattern: "README.md"
+      - name: architecture
+        label: "架构分析"
+        pattern: "architecture.md"
+      - name: code_review
+        label: "代码审查"
+        pattern: "code-review.md"
+    field_hints:
+      url:          { label: "链接", ui: link }
+      owner:        { label: "组织/作者", ui: text }
+      status:       { label: "状态", ui: select, options: ["未开始", "学习中", "已完成"] }
+      tags:         { label: "标签", ui: tags }
+      created:      { label: "创建日期", ui: date }
+    list_columns: ["title", "owner", "status", "tags", "created"]
+
+  # =============================================================
+  # 收藏夹 - GitHub 仓库
+  # =============================================================
+  - id: github_repo
+    label: "GitHub 收藏"
+    icon: "Connection"
+    category: collection
+    path:
+      scan: "DB/GitHub/*.md"
+      depth: 2
+    multi_entry: true              # 单文件多条目，用 --- 分隔
+    # source.* 嵌套对象会在渲染时自动扁平化显示
+    field_hints:
+      source.url:         { label: "地址", ui: link }
+      source.name:        { label: "仓库名", ui: text }
+      source.title:       { label: "项目名", ui: text }
+      source.description: { label: "描述", ui: text }
+      source.stars:       { label: "星标", ui: number }
+      source.language:    { label: "语言", ui: text }
+      source.topics:      { label: "主题", ui: badges }
+      type:               { label: "类型", ui: select, options: ["open-source", "ai-tool", "mcp-tool", "inbox"] }
+      tags:               { label: "标签", ui: tags }
+      rating:             { label: "评分", ui: star, min: 0, max: 10 }
+      comment:            { label: "备注", ui: textarea }
+    list_columns: ["source.name", "source.language", "source.stars", "type", "tags"]
+
+  # =============================================================
+  # 收藏夹 - 动漫
+  # =============================================================
+  - id: anime
+    label: "动漫"
+    icon: "VideoPlay"
+    category: collection
+    path:
+      scan: "DB/Anime/*.md"
+      depth: 2
+    multi_entry: true
+    field_hints:
+      source.title:       { label: "名称", ui: text }
+      source.year:        { label: "年份", ui: number }
+      source.studio:      { label: "制作公司", ui: text }
+      source.episodes:    { label: "集数", ui: number }
+      type:               { label: "类型", ui: select, options: ["anime", "childhood-anime"] }
+      tags:               { label: "标签", ui: tags }
+      rating:             { label: "评分", ui: star, min: 0, max: 10 }
+      status:             { label: "状态", ui: select, options: ["想看", "追番中", "已看完"] }
+      comment:            { label: "备注", ui: textarea }
+    list_columns: ["source.title", "source.year", "type", "rating", "status", "tags"]
+
+  # =============================================================
+  # 收藏夹 - 游戏
+  # =============================================================
+  - id: game
+    label: "游戏"
+    icon: "Gamepad"
+    category: collection
+    path:
+      scan: "DB/Games/*.md"
+      depth: 2
+    multi_entry: true
+    field_hints:
+      source.title:       { label: "名称", ui: text }
+      source.year:        { label: "年份", ui: number }
+      source.developer:   { label: "开发商", ui: text }
+      source.platform:    { label: "平台", ui: select }
+      source.genres:      { label: "类型", ui: badges }
+      type:               { label: "状态类型", ui: select }
+      tags:               { label: "标签", ui: tags }
+      rating:             { label: "评分", ui: star, min: 0, max: 10 }
+      status:             { label: "状态", ui: select, options: ["想玩", "游玩中", "已通关"] }
+      comment:            { label: "备注", ui: textarea }
+    list_columns: ["source.title", "source.platform", "source.year", "rating", "status", "tags"]
+
+  # =============================================================
+  # 收藏夹 - 电影
+  # =============================================================
+  - id: movie
+    label: "电影"
+    icon: "Film"
+    category: collection
+    path:
+      scan: "DB/Movies/*.md"
+      depth: 2
+    multi_entry: true
+    field_hints:
+      source.title:       { label: "名称", ui: text }
+      source.year:        { label: "年份", ui: number }
+      source.director:    { label: "导演", ui: text }
+      source.genre:       { label: "类型", ui: select }
+      type:               { label: "分类", ui: select }
+      tags:               { label: "标签", ui: tags }
+      rating:             { label: "评分", ui: star, min: 0, max: 10 }
+      status:             { label: "状态", ui: select, options: ["想看", "已看"] }
+      comment:            { label: "备注", ui: textarea }
+    list_columns: ["source.title", "source.year", "source.director", "rating", "status", "tags"]
+
+  # =============================================================
+  # 收藏夹 - 名言与金句
+  # =============================================================
+  - id: quote
+    label: "名言收藏"
+    icon: "ChatLineSquare"
+    category: collection
+    path:
+      scan: "DB/Quotes/*.md"
+      depth: 2
+    multi_entry: true
+    # quote 类型的文件按主题分文件（人生哲学.md / 心理学效应.md / 诗词名句.md）
+    # 文件名即该组名言的分类标签
+    field_hints:
+      quote:      { label: "原文", ui: quote }
+      author:     { label: "作者", ui: text }
+      source:     { label: "出处", ui: text }
+      tags:       { label: "标签", ui: tags }
+      comment:    { label: "解读", ui: textarea }
+    list_columns: ["quote", "author", "source", "tags"]
+
+  # =============================================================
+  # 项目 - 问题解决 / 需求实现
+  # =============================================================
+  - id: project
+    label: "问题解决"
+    icon: "FolderOpened"
+    category: project
+    path:
+      scan: "Project/*/index.md"
+      depth: 2
+    sub_files:
+      - name: steps
+        label: "解决步骤"
+        pattern: "doc/steps.md"
+      - name: decision_tree
+        label: "决策树"
+        pattern: "doc/decision-tree.md"
+      - name: investigation
+        label: "排查过程"
+        pattern: "doc/investigation.md"
+    # 可选资源文件目录
+    resource_dirs:
+      - "resources"
+      - "scripts"
+    field_hints:
+      type:               { label: "类型", ui: select, options: ["question", "need"] }
+      tags:               { label: "标签", ui: tags }
+      platform:           { label: "平台", ui: badges }
+      skill_ref:          { label: "关联技能", ui: link }
+      reproducible:       { label: "可复现", ui: select, options: ["script", "manual", "no"] }
+      date:               { label: "日期", ui: date }
+    list_columns: ["title", "type", "date", "tags"]
+
+  # =============================================================
+  # 知识库 - 领域知识
+  # =============================================================
+  - id: knowledge
+    label: "知识库"
+    icon: "Reading"
+    category: knowledge
+    path:
+      scan: "Area/**/*.md"             # 递归扫描 Area 下所有 md
+      depth: 99
+      exclude: ["**/README.md"]         # 排除目录说明文件
+    # Knowledge 条目通常没有 frontmatter，纯 Markdown 内容
+    # 标题从第一个 # 标题 自动提取
+    # 文件路径作为分类层级（如 Area/Math/Calculus/Derivatives.md → Math ▶ Calculus）
+    frontmatter_optional: true
+    list_columns: []                     # 空列表 = 从字段自动推断
+
+  # =============================================================
+  # 技能 - AI 执行技能
+  # =============================================================
+  - id: executor_skill
+    label: "执行技能"
+    icon: "MagicStick"
+    category: skill
+    path:
+      scan: "Skills/executor-skills/*/SKILL.md"
+      depth: 2
+    field_hints:
+      name:               { label: "名称", ui: text }
+      description:        { label: "描述", ui: text }
+      type:               { label: "类型", ui: select }
+      execution_mode:     { label: "执行模式", ui: select }
+      metadata.category:  { label: "分类", ui: text }
+      metadata.platform:  { label: "平台", ui: badges }
+      metadata.tags:      { label: "标签", ui: tags }
+    list_columns: ["name", "metadata.category", "type", "metadata.tags"]
+
+  # =============================================================
+  # 技能 - 用户指南技能
+  # =============================================================
+  - id: advisor_skill
+    label: "用户指南"
+    icon: "User"
+    category: skill
+    path:
+      scan: "Skills/advisor-skills/*/USER-SKILL.md"
+      depth: 2
+    field_hints:
+      name:               { label: "名称", ui: text }
+      description:        { label: "描述", ui: text }
+      type:               { label: "类型", ui: select }
+      execution_mode:     { label: "模式", ui: select }
+      metadata.category:  { label: "分类", ui: text }
+      metadata.platform:  { label: "平台", ui: badges }
+      metadata.github:    { label: "GitHub", ui: link }
+      metadata.tags:      { label: "标签", ui: tags }
+    list_columns: ["name", "metadata.category", "type", "metadata.tags"]
+
+  # =============================================================
+  # 技能 - 代码模板
+  # =============================================================
+  - id: code_skill
+    label: "代码模板"
+    icon: "Document"
+    category: skill
+    path:
+      scan: "Skills/code-skills/*/SKILL.md"
+      depth: 2
+    field_hints:
+      name:               { label: "名称", ui: text }
+      description:        { label: "描述", ui: text }
+      type:               { label: "类型", ui: select }
+      execution_mode:     { label: "模式", ui: select }
+      metadata.category:  { label: "分类", ui: text }
+      metadata.tags:      { label: "标签", ui: tags }
+    list_columns: ["name", "metadata.category", "type"]
+
+  # =============================================================
+  # 技能 - 工具参考
+  # =============================================================
+  - id: tool_skill
+    label: "工具参考"
+    icon: "Tools"
+    category: skill
+    path:
+      scan: "Skills/tool-skills/*/SKILL.md"
+      depth: 2
+    field_hints:
+      name:               { label: "名称", ui: text }
+      description:        { label: "描述", ui: text }
+      type:               { label: "类型", ui: select }
+      execution_mode:     { label: "模式", ui: select }
+      metadata.category:  { label: "分类", ui: text }
+      metadata.tags:      { label: "标签", ui: tags }
+    list_columns: ["name", "metadata.category", "type"]
+
+  # =============================================================
+  # 收件箱 - 碎片信息（待分类）
+  # =============================================================
+  - id: inbox
+    label: "收件箱"
+    icon: "Inbox"
+    category: collection
+    path:
+      scan: "DB/index.md"
+      depth: 1
+    frontmatter_optional: true
+    # 没有 frontmatter 的纯文本条目
+    list_columns: []
+
+# -------- 全局 UI 组件类型定义 --------
+# 引擎读取 field_hints 中的 ui 字段，映射到以下渲染组件：
+ui_types:
+  text:       { component: "StringField",    desc: "普通文本" }
+  textarea:   { component: "StringField",    desc: "多行文本", props: { type: "textarea" } }
+  number:     { component: "NumberField",    desc: "数字" }
+  link:       { component: "LinkField",      desc: "可点击链接" }
+  image:      { component: "ImageField",     desc: "图片展示" }
+  date:       { component: "DateField",      desc: "日期" }
+  select:     { component: "SelectField",    desc: "下拉选择" }
+  tags:       { component: "TagsField",      desc: "标签阵列" }
+  badges:     { component: "BadgesField",    desc: "徽章列表" }
+  star:       { component: "StarField",      desc: "星级评分", props: { min: 0, max: 5 } }
+  quote:      { component: "QuoteField",     desc: "引用块" }
+
+# -------- 引擎行为说明（非代码，给开发者看） --------
+# 
+# 1. 字段自动发现
+#    后端启动时，对每种类型读取第一个匹配文件的 YAML frontmatter，
+#    自动提取所有字段名和 Go/TS 类型（string→string, 数字→number, 数组→array, bool→boolean）。
+#    嵌套字段（如 source.url）会被扁平化处理。
+#
+# 2. field_hints 合并
+#    自动发现字段 + field_hints 合并为最终字段定义。
+#    hints 中未列出的字段：label 用 key 名自动生成（驼峰/下划线转自然语言），
+#    类型按值推断渲染。
+#
+# 3. 列表列推断
+#    list_columns 为空时，按 frontmatter 字段顺序自动展示前 N 个字段（最多 6 个）。
+#
+# 4. select options 推断
+#    options 未指定时：扫描同类型所有条目，收集该字段的去重值作为默认选项。
+#
+# 5. 多条目文件（multi_entry: true）
+#    整个文件被 ```---`` 分割为多个条目，每个条目有独立的 frontmatter + body。
+#
+# 6. 子文件（sub_files）
+#    每个条目目录下的附属文件，内容加载为 markdown 文本，给渲染器渲染。
+#
+# 7. 分组聚合（如 Quotes）
+#    当多个文件匹配同一 scan pattern 时（如 DB/Quotes/ 下有多个 .md），
+#    按文件来源自动分组，文件名作为该组的分类标签。

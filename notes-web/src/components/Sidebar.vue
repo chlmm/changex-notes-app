@@ -4,7 +4,7 @@
       <el-icon size="24"><Notebook /></el-icon>
       <span>笔记库</span>
     </div>
-    
+
     <el-menu
       :default-active="activeMenu"
       router
@@ -14,61 +14,31 @@
         <el-icon><HomeFilled /></el-icon>
         <span>首页</span>
       </el-menu-item>
-      
-      <el-menu-item index="/books">
-        <el-icon><Reading /></el-icon>
-        <span>书籍学习</span>
-      </el-menu-item>
-      
-      <el-menu-item index="/videos">
-        <el-icon><VideoPlay /></el-icon>
-        <span>视频学习</span>
-      </el-menu-item>
 
-      <el-menu-item index="/knowledge">
-        <el-icon><Collection /></el-icon>
-        <span>知识库</span>
-      </el-menu-item>
+      <!-- 按分类动态生成菜单 -->
+      <template v-for="cat in categoriesWithTypes" :key="cat.ID">
+        <el-sub-menu v-if="cat.Types.length > 1" :index="cat.ID">
+          <template #title>
+            <el-icon><component :is="cat.Icon" /></el-icon>
+            <span>{{ cat.Label }}</span>
+          </template>
+          <el-menu-item
+            v-for="t in cat.Types"
+            :key="t.ID"
+            :index="'/' + t.ID"
+          >
+            {{ t.Label }}
+          </el-menu-item>
+        </el-sub-menu>
 
-      <el-menu-item index="/skills">
-        <el-icon><Tools /></el-icon>
-        <span>技能库</span>
-      </el-menu-item>
-
-      <el-menu-item index="/problems">
-        <el-icon><QuestionFilled /></el-icon>
-        <span>问题与解决</span>
-      </el-menu-item>
-
-      <el-menu-item index="/index">
-        <el-icon><Star /></el-icon>
-        <span>索引收藏</span>
-      </el-menu-item>
-
-      <el-menu-item index="/quotes">
-        <el-icon><Edit /></el-icon>
-        <span>金句收藏</span>
-      </el-menu-item>
-
-      <el-menu-item index="/github">
-        <el-icon><Link /></el-icon>
-        <span>GitHub 收藏</span>
-      </el-menu-item>
-
-      <el-menu-item index="/anime">
-        <el-icon><Film /></el-icon>
-        <span>动漫收藏</span>
-      </el-menu-item>
-
-      <el-menu-item index="/movies">
-        <el-icon><VideoCamera /></el-icon>
-        <span>电影收藏</span>
-      </el-menu-item>
-
-      <el-menu-item index="/games">
-        <el-icon><Monitor /></el-icon>
-        <span>游戏收藏</span>
-      </el-menu-item>
+        <el-menu-item
+          v-else
+          :index="'/' + cat.Types[0].ID"
+        >
+          <el-icon><component :is="cat.Types[0].Icon" /></el-icon>
+          <span>{{ cat.Types[0].Label }}</span>
+        </el-menu-item>
+      </template>
     </el-menu>
 
     <div class="sidebar-footer">
@@ -78,32 +48,42 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { useNotesStore } from '@/stores/notes'
-import { Notebook, HomeFilled, Reading, VideoPlay, Collection, Tools, QuestionFilled, Star, Edit, Link, Film, VideoCamera, Monitor } from '@element-plus/icons-vue'
+import { useSchema } from '@/composables/useSchema'
+import { getStats } from '@/api/notesV2'
+import { Notebook, HomeFilled } from '@element-plus/icons-vue'
+import type { CategoryDef, TypeDef } from '@/types/schema'
 
 const route = useRoute()
-const notesStore = useNotesStore()
+const { categories, loadSchema, getTypesByCategory } = useSchema()
 
-const activeMenu = computed(() => {
-  if (route.path.startsWith('/books')) return '/books'
-  return route.path
+const totalNotes = ref(0)
+
+interface CategoryWithTypes extends CategoryDef {
+  Types: TypeDef[]
+}
+
+const categoriesWithTypes = computed<CategoryWithTypes[]>(() => {
+  return categories.value.map(cat => ({
+    ...cat,
+    Types: getTypesByCategory(cat.ID),
+  })).filter(c => c.Types.length > 0)
 })
 
-const totalNotes = computed(() => 
-  notesStore.stats.totalBooks + 
-  notesStore.stats.totalVideos + 
-  notesStore.stats.totalKnowledge + 
-  notesStore.stats.totalSkills + 
-  notesStore.stats.totalProblems + 
-  notesStore.stats.totalIndex +
-  notesStore.stats.totalQuotes +
-  notesStore.stats.totalGitHub +
-  notesStore.stats.totalAnime +
-  notesStore.stats.totalMovies +
-  notesStore.stats.totalGames
-)
+const activeMenu = computed(() => {
+  const path = route.path
+  if (path === '/') return '/'
+  const parts = path.split('/')
+  return '/' + parts[1]
+})
+
+onMounted(async () => {
+  await loadSchema()
+  getStats().then(s => {
+    totalNotes.value = Object.values(s).reduce((a, b) => a + b, 0)
+  }).catch(() => {})
+})
 </script>
 
 <style scoped>

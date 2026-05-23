@@ -6,6 +6,7 @@ type Config struct {
 	Addr       string
 	NotesPath  string
 	StaticPath string
+	SchemaPath string
 }
 
 func Load() *Config {
@@ -20,9 +21,15 @@ func Load() *Config {
 		staticPath = "../notes-web/dist"
 	}
 
+	schemaPath := os.Getenv("SCHEMA_PATH")
+	if schemaPath == "" {
+		schemaPath = "../schema/note-schema.yaml"
+	}
+
 	return &Config{
 		Addr:       ":8080",
 		NotesPath:  notesPath,
 		StaticPath: staticPath,
+		SchemaPath: schemaPath,
 	}
 }

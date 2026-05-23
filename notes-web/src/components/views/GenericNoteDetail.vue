@@ -1,0 +1,225 @@
+<template>
+  <div class="generic-note-detail">
+    <!-- 加载中 -->
+    <el-skeleton v-if="loading" :rows="8" animated />
+
+    <!-- 错误 -->
+    <el-result
+      v-else-if="error"
+      icon="error"
+      :title="error"
+      :sub-title="`类型: ${typeId}, ID: ${noteId}`"
+    >
+      <template #extra>
+        <el-button @click="$router.back()">返回</el-button>
+      </template>
+    </el-result>
+
+    <!-- 内容 -->
+    <div v-else-if="note" class="detail-content">
+      <!-- 返回按钮 -->
+      <div class="detail-back">
+        <el-button text @click="$router.back()">
+          <el-icon><ArrowLeft /></el-icon>
+          返回列表
+        </el-button>
+      </div>
+
+      <!-- 标题 -->
+      <h1 class="detail-title">
+        {{ type?.Label || typeId }}详情
+      </h1>
+
+      <!-- 字段信息 -->
+      <div class="detail-fields">
+        <div
+          v-for="field in fields"
+          :key="field.key"
+          class="detail-field-row"
+        >
+          <span class="field-label">{{ field.label }}</span>
+          <span class="field-value">
+            <FieldRenderer
+              :value="note.fields[field.key]"
+              :hint="field.hint"
+            />
+          </span>
+        </div>
+      </div>
+
+      <!-- 子文件 -->
+      <div v-if="subFiles.length" class="detail-subfiles">
+        <el-divider />
+        <h3>关联文件</h3>
+        <el-tabs v-model="activeSubFile" type="card">
+          <el-tab-pane
+            v-for="sf in subFiles"
+            :key="sf.key"
+            :label="sf.label"
+            :name="sf.key"
+          >
+            <div class="subfile-content" v-html="renderMarkdown(sf.content)" />
+          </el-tab-pane>
+        </el-tabs>
+      </div>
+
+      <!-- 正文 -->
+      <div v-if="note.content" class="detail-body">
+        <el-divider />
+        <h3>正文</h3>
+        <div class="body-content" v-html="renderMarkdown(note.content)" />
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { ArrowLeft } from '@element-plus/icons-vue'
+import { useSchema, getFieldLabel } from '@/composables/useSchema'
+import { getNoteDetail } from '@/api/notesV2'
+import FieldRenderer from '@/components/fields/FieldRenderer.vue'
+import type { GenericNote } from '@/types/note'
+import type { TypeDef } from '@/types/schema'
+
+// 简单 markdown 渲染（不带 highlight.js，轻量）
+function renderMarkdown(text: string): string {
+  if (!text) return ''
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+    .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/^\- (.+)$/gm, '<li>$1</li>')
+    .replace(/\n\n/g, '<br><br>')
+}
+
+const props = defineProps<{
+  typeId: string
+  noteId: string
+}>()
+
+const { getType, loadSchema } = useSchema()
+
+const loading = ref(true)
+const error = ref('')
+const note = ref<GenericNote | null>(null)
+const activeSubFile = ref('')
+
+const type = computed<TypeDef | undefined>(() => getType(props.typeId))
+
+interface FieldRow {
+  key: string
+  label: string
+  hint: any | null
+}
+
+const fields = computed<FieldRow[]>(() => {
+  if (!type.value) return []
+  const hints = type.value.FieldHints || {}
+  // 展示所有有值的 hint 字段
+  return Object.entries(hints).map(([key, hint]) => ({
+    key,
+    label: getFieldLabel(key, hint),
+    hint,
+  }))
+})
+
+const subFiles = computed(() => {
+  if (!note.value?.subFiles || !type.value?.SubFiles) return []
+  const sf = note.value.subFiles
+  return type.value.SubFiles
+    .filter(s => sf[s.Name])
+    .map(s => ({
+      key: s.Name,
+      label: s.Label,
+      content: sf[s.Name] || '',
+    }))
+})
+
+onMounted(async () => {
+  await loadSchema()
+  try {
+    note.value = await getNoteDetail(props.typeId, props.noteId)
+    if (subFiles.value.length) {
+      activeSubFile.value = subFiles.value[0].key
+    }
+  } catch (e) {
+    error.value = '笔记加载失败'
+  } finally {
+    loading.value = false
+  }
+})
+</script>
+
+<style scoped>
+.generic-note-detail {
+  padding: 16px;
+  max-width: 900px;
+}
+.detail-back { margin-bottom: 12px; }
+.detail-title { margin-bottom: 20px; }
+.detail-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.detail-field-row {
+  display: flex;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.detail-field-row:nth-last-child(-n+2):nth-child(odd),
+.detail-field-row:last-child {
+  border-bottom: none;
+}
+.field-label {
+  width: 120px;
+  min-width: 120px;
+  padding: 10px 16px;
+  background: var(--el-fill-color-light);
+  font-weight: 500;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+.field-value {
+  flex: 1;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+}
+.detail-subfiles { margin-top: 20px; }
+.subfile-content {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 12px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.detail-body { margin-top: 20px; }
+.body-content {
+  padding: 16px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.body-content :deep(h2) { margin-top: 0; }
+.body-content :deep(h3) { font-size: 16px; }
+.body-content :deep(li) { margin-left: 20px; }
+.body-content :deep(code) {
+  background: var(--el-color-primary-light-9);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+</style>
