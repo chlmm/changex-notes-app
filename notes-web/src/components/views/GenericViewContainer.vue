@@ -10,6 +10,8 @@
         <span class="header-count">{{ flatNotes.length }} 条</span>
       </div>
       <div class="header-right">
+        <OpenModeSelector v-model="openMode" />
+        <el-divider direction="vertical" />
         <ViewSwitcher v-model="currentView" :available-views="availableViews" />
       </div>
     </div>
@@ -100,6 +102,8 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import ViewSwitcher, { type ViewType } from '@/components/dashboard/widgets/ViewSwitcher.vue'
+import OpenModeSelector from '@/components/OpenModeSelector.vue'
+import { useNoteViewSettings } from '@/composables/useNoteViewSettings'
 import TableView, { type TableColumnConfig } from '@/components/dashboard/widgets/TableView.vue'
 import GridView from '@/components/dashboard/widgets/GridView.vue'
 import ListView from '@/components/dashboard/widgets/ListView.vue'
@@ -179,7 +183,13 @@ const { getType } = useSchema()
 // ========================
 // State
 // ========================
+const { settings } = useNoteViewSettings()
 const currentView = ref<ViewType>('table')
+
+const openMode = computed({
+  get: () => settings.value.openMode,
+  set: (v) => { settings.value.openMode = v },
+})
 
 // ========================
 // Computed: type & flat notes

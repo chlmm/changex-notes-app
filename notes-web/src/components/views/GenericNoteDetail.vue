@@ -1,5 +1,5 @@
 <template>
-  <div class="generic-note-detail">
+  <div :class="['generic-note-detail', { overlay: overlay }]">
     <!-- 加载中 -->
     <el-skeleton v-if="loading" :rows="8" animated />
 
@@ -11,15 +11,20 @@
       :sub-title="`类型: ${typeId}, ID: ${noteId}`"
     >
       <template #extra>
-        <el-button @click="$router.back()">返回</el-button>
+        <el-button v-if="overlay" @click="handleClose">关闭</el-button>
+        <el-button v-else @click="$router.back()">返回</el-button>
       </template>
     </el-result>
 
     <!-- 内容 -->
     <div v-else-if="note" class="detail-content">
-      <!-- 返回按钮 -->
+      <!-- 返回/关闭按钮 -->
       <div class="detail-back">
-        <el-button text @click="$router.back()">
+        <el-button v-if="overlay" text @click="handleClose">
+          <el-icon><Close /></el-icon>
+          关闭
+        </el-button>
+        <el-button v-else text @click="$router.back()">
           <el-icon><ArrowLeft /></el-icon>
           返回列表
         </el-button>
@@ -79,7 +84,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ArrowLeft } from '@element-plus/icons-vue'
+import { ArrowLeft, Close } from '@element-plus/icons-vue'
 import { useSchema, getFieldLabel } from '@/composables/useSchema'
 import { getNoteDetail } from '@/api/notesV2'
 import FieldRenderer from '@/components/fields/FieldRenderer.vue'
@@ -90,7 +95,14 @@ import type { TypeDef } from '@/types/schema'
 const props = defineProps<{
   typeId: string
   noteId: string
+  overlay?: boolean
 }>()
+
+const emit = defineEmits<{
+  close: []
+}>()
+
+const handleClose = () => emit('close')
 
 const { getType, loadSchema } = useSchema()
 
@@ -149,6 +161,10 @@ onMounted(async () => {
 .generic-note-detail {
   padding: 16px;
   max-width: 900px;
+}
+.generic-note-detail.overlay {
+  padding: 0;
+  max-width: none;
 }
 .detail-back { margin-bottom: 12px; }
 .detail-title { margin-bottom: 20px; }
