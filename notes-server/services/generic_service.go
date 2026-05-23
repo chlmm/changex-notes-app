@@ -54,15 +54,15 @@ func (s *GenericNoteService) GetList(typeID string) ([]models.GenericNote, error
 	return notes, nil
 }
 
-// GetDetail 获取单条笔记详情
+// GetDetail 获取单条笔记详情（返回指向 slice 元素的指针，可安全修改缓存）
 func (s *GenericNoteService) GetDetail(typeID, id string) (*models.GenericNote, error) {
 	notes, ok := s.notes[typeID]
 	if !ok {
 		return nil, fmt.Errorf("unknown note type: %s", typeID)
 	}
-	for _, n := range notes {
-		if n.ID == id {
-			return &n, nil
+	for i := range notes {
+		if notes[i].ID == id {
+			return &notes[i], nil
 		}
 	}
 	return nil, fmt.Errorf("note not found: %s/%s", typeID, id)
@@ -408,6 +408,451 @@ func isEmptyEntry(fm map[string]interface{}) bool {
 		}
 	}
 	return true
+}
+
+// UpdateField 更新笔记的单个字段，写回 .md 文件
+func (s *GenericNoteService) UpdateField(typeID, id, field, value string) error {
+	note, err := s.GetDetail(typeID, id)
+	if err != nil {
+		return err
+	}
+
+	filePath := filepath.Join(s.cfg.NotesPath, note.Path)
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("read file: %w", err)
+	}
+
+	// 判断是否为多条目
+	isMulti := strings.Contains(id, "#")
+	idx := -1
+	if isMulti {
+		parts := strings.SplitN(id, "#", 2)
+		if len(parts) == 2 {
+			fmt.Sscanf(parts[1], "%d", &idx)
+		}
+	}
+
+	newContent, err := s.updateFieldInContent(typeID, string(content), idx, field, value)
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(filePath, []byte(newContent), 0644); err != nil {
+		return fmt.Errorf("write file: %w", err)
+	}
+
+	// 更新内存缓存
+	note.Fields[field] = value
+	return nil
+}
+
+// updateFieldInContent 在不破坏 Markdown 内容的前提下修改 YAML frontmatter 中的字段
+func (s *GenericNoteService) updateFieldInContent(typeID, content string, idx int, field, value string) (string, error) {
+	if idx >= 0 {
+		return s.updateMultiEntryField(content, idx, field, value)
+	}
+	return s.updateSingleEntryField(content, field, value)
+}
+
+func (s *GenericNoteService) updateSingleEntryField(content, field, value string) (string, error) {
+	content = strings.TrimSpace(content)
+	if !strings.HasPrefix(content, "---") {
+		return "", fmt.Errorf("no frontmatter delimiter")
+	}
+
+	rest := content[3:]
+	endIdx := strings.Index(rest, "\n---")
+	if endIdx == -1 {
+		return "", fmt.Errorf("no closing frontmatter delimiter")
+	}
+
+	yamlStr := rest[:endIdx]
+	body := strings.TrimSpace(rest[endIdx+4:])
+
+	var fm map[string]interface{}
+	if err := yaml.Unmarshal([]byte(yamlStr), &fm); err != nil {
+		return "", fmt.Errorf("yaml parse: %w", err)
+	}
+
+	// 更新字段（支持 nested: parent.child）
+	if err := setNestedFieldWithUnnesting(fm, field, value); err != nil {
+		return "", err
+	}
+
+	// 序列化回 YAML
+	newYAML, err := yaml.Marshal(fm)
+	if err != nil {
+		return "", fmt.Errorf("yaml marshal: %w", err)
+	}
+
+	sb := strings.Builder{}
+	sb.WriteString("---\n")
+	sb.WriteString(strings.TrimSpace(string(newYAML)))
+	sb.WriteString("\n---")
+	if body != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(body)
+	}
+	sb.WriteString("\n")
+	return sb.String(), nil
+}
+
+func (s *GenericNoteService) updateMultiEntryField(content string, idx int, field, value string) (string, error) {
+	blocks := splitFrontmatterBlocks(content)
+	if idx < 0 || idx >= len(blocks) {
+		return "", fmt.Errorf("entry index %d out of range (total %d entries)", idx, len(blocks))
+	}
+
+	block := strings.TrimSpace(blocks[idx])
+	updated, err := s.updateSingleEntryField(block, field, value)
+	if err != nil {
+		return "", fmt.Errorf("update entry %d: %w", idx, err)
+	}
+
+	blocks[idx] = strings.TrimSpace(updated)
+	// 重新拼接：每两个条目之间用 \n---\n 分隔
+	return strings.Join(blocks, "\n---\n") + "\n", nil
+}
+
+// setNestedFieldWithUnnesting 设置嵌套字段（支持 "parent.child" 表示法）
+// 同时处理"反向嵌套"：如果存在扁平化后的 key（如 "source.title"），
+// 则还原为嵌套结构写入
+func setNestedFieldWithUnnesting(fm map[string]interface{}, field, value string) error {
+	// 先尝试作为已经扁平化的 key 还原
+	if strings.Contains(field, ".") {
+		parts := strings.SplitN(field, ".", 2)
+		parent := parts[0]
+		child := parts[1]
+		if nested, ok := fm[parent]; ok {
+			if nestedMap, ok := nested.(map[string]interface{}); ok {
+				nestedMap[child] = value
+				return nil
+			}
+		}
+		// 如果父级不存在，创建嵌套结构
+		newNested := map[string]interface{}{child: value}
+		fm[parent] = newNested
+		return nil
+	}
+	fm[field] = value
+	return nil
+}
+
+// =============================================================
+// CRUD 操作
+// =============================================================
+
+// CreateNote 创建新笔记
+func (s *GenericNoteService) CreateNote(typeID string, fields map[string]interface{}, content string) (*models.GenericNote, error) {
+	td := s.schema.GetType(typeID)
+	if td == nil {
+		return nil, fmt.Errorf("unknown note type: %s", typeID)
+	}
+
+	// 确定文件路径：优先从 field 推断，否则自动生成
+	filePath := s.resolveCreatePath(td, fields)
+	fullPath := filepath.Join(s.cfg.NotesPath, filePath)
+
+	// 检查文件是否已存在
+	if _, err := os.Stat(fullPath); err == nil {
+		if td.MultiEntry {
+			// 多条目：追加到现有文件
+			return s.appendMultiEntry(td, fullPath, filePath, fields, content)
+		}
+		return nil, fmt.Errorf("文件已存在: %s", filePath)
+	}
+
+	// 创建目录
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		return nil, fmt.Errorf("create dir: %w", err)
+	}
+
+	// 将展开的扁平 key 还原为嵌套 YAML
+	yamlStr := s.marshalFields(fields)
+	sb := strings.Builder{}
+	sb.WriteString("---\n")
+	sb.WriteString(yamlStr)
+	sb.WriteString("---\n")
+	if content != "" {
+		sb.WriteString("\n")
+		sb.WriteString(content)
+		sb.WriteString("\n")
+	}
+
+	if err := os.WriteFile(fullPath, []byte(sb.String()), 0644); err != nil {
+		return nil, fmt.Errorf("write file: %w", err)
+	}
+
+	note := &models.GenericNote{
+		TypeID:  typeID,
+		ID:      filePath,
+		Fields:  fields,
+		Content: content,
+		Path:    filePath,
+	}
+
+	// 追加到内存缓存
+	s.notes[typeID] = append(s.notes[typeID], *note)
+	return note, nil
+}
+
+// UpdateNote 更新笔记
+func (s *GenericNoteService) UpdateNote(typeID, id string, fields map[string]interface{}, content string) error {
+	note, err := s.GetDetail(typeID, id)
+	if err != nil {
+		return err
+	}
+
+	filePath := filepath.Join(s.cfg.NotesPath, note.Path)
+	fileContent, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("read file: %w", err)
+	}
+
+	isMulti := strings.Contains(id, "#")
+	idx := -1
+	if isMulti {
+		if parts := strings.SplitN(id, "#", 2); len(parts) == 2 {
+			fmt.Sscanf(parts[1], "%d", &idx)
+		}
+	}
+
+	newContent, err := s.replaceEntryContent(string(fileContent), idx, fields, content)
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(filePath, []byte(newContent), 0644); err != nil {
+		return fmt.Errorf("write file: %w", err)
+	}
+
+	// 更新内存
+	for k, v := range fields {
+		note.Fields[k] = v
+	}
+	note.Content = content
+	return nil
+}
+
+// DeleteNote 删除笔记
+func (s *GenericNoteService) DeleteNote(typeID, id string) error {
+	note, err := s.GetDetail(typeID, id)
+	if err != nil {
+		return err
+	}
+
+	filePath := filepath.Join(s.cfg.NotesPath, note.Path)
+
+	isMulti := strings.Contains(id, "#")
+	if !isMulti {
+		// 单条目：直接删除文件
+		if err := os.Remove(filePath); err != nil {
+			return fmt.Errorf("remove file: %w", err)
+		}
+	} else {
+		// 多条目：删除指定 entry
+		parts := strings.SplitN(id, "#", 2)
+		idx := 0
+		fmt.Sscanf(parts[1], "%d", &idx)
+
+		fileContent, err := os.ReadFile(filePath)
+		if err != nil {
+			return fmt.Errorf("read file: %w", err)
+		}
+
+		newContent, err := s.removeMultiEntry(string(fileContent), idx)
+		if err != nil {
+			return err
+		}
+
+		if strings.TrimSpace(newContent) == "" {
+			// 全部删完了，删除文件
+			if err := os.Remove(filePath); err != nil {
+				return fmt.Errorf("remove empty file: %w", err)
+			}
+		} else {
+			if err := os.WriteFile(filePath, []byte(newContent), 0644); err != nil {
+				return fmt.Errorf("write file: %w", err)
+			}
+		}
+	}
+
+	// 从内存缓存中移除
+	notes := s.notes[typeID]
+	for i, n := range notes {
+		if n.ID == id {
+			s.notes[typeID] = append(notes[:i], notes[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
+
+// =============================================================
+// CRUD 辅助函数
+// =============================================================
+
+// resolveCreatePath 解析创建路径
+func (s *GenericNoteService) resolveCreatePath(td *schema.TypeDef, fields map[string]interface{}) string {
+	// 尝试从 field 中获取目录/文件名
+	scan := td.Path.Scan
+
+	// 如果有 title，用 title 作为文件名
+	title := ""
+	if t, ok := fields["title"]; ok {
+		if ts, ok := t.(string); ok {
+			title = ts
+		}
+	}
+	if title == "" {
+		if t, ok := fields["source.title"]; ok {
+			title = fmt.Sprintf("%v", t)
+		}
+	}
+	if title == "" {
+		title = "untitled"
+	}
+	fileName := sanitizeFileName(title) + ".md"
+
+	// 从 scan 模式中取目录
+	dir := ""
+	if strings.Contains(scan, "**") {
+		parts := strings.SplitN(scan, "**", 2)
+		dir = parts[0]
+	} else {
+		dir = filepath.Dir(scan)
+	}
+
+	return filepath.Join(dir, fileName)
+}
+
+func sanitizeFileName(name string) string {
+	replacer := strings.NewReplacer(
+		"/", "-", "\\", "-", ":", "-", "*", "-", "?", "-",
+		"\"", "-", "<", "-", ">", "-", "|", "-",
+	)
+	return replacer.Replace(name)
+}
+
+// marshalFields 将扁平字段还原为嵌套 YAML 结构
+func (s *GenericNoteService) marshalFields(fields map[string]interface{}) string {
+	unnested := unnestMap(fields)
+	yamlBytes, _ := yaml.Marshal(unnested)
+	return strings.TrimSpace(string(yamlBytes))
+}
+
+// unnestMap 将 "parent.child" key 还原为嵌套 map
+func unnestMap(flat map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+	for k, v := range flat {
+		if strings.Contains(k, ".") {
+			parts := strings.SplitN(k, ".", 2)
+			parent := parts[0]
+			child := parts[1]
+			if existing, ok := result[parent]; ok {
+				if existingMap, ok := existing.(map[string]interface{}); ok {
+					existingMap[child] = v
+				}
+			} else {
+				result[parent] = map[string]interface{}{child: v}
+			}
+		} else {
+			result[k] = v
+		}
+	}
+	return result
+}
+
+// appendMultiEntry 追加条目到多条目文件
+func (s *GenericNoteService) appendMultiEntry(td *schema.TypeDef, fullPath, relPath string, fields map[string]interface{}, content string) (*models.GenericNote, error) {
+	existing, err := os.ReadFile(fullPath)
+	if err != nil {
+		return nil, err
+	}
+	existingStr := strings.TrimSpace(string(existing))
+
+	// 计数现有条目，确定新索引
+	blocks := splitFrontmatterBlocks(existingStr)
+	newIdx := len(blocks)
+
+	yamlStr := s.marshalFields(fields)
+
+	sb := strings.Builder{}
+	sb.WriteString(existingStr)
+	sb.WriteString("\n\n---\n")
+	sb.WriteString(yamlStr)
+	sb.WriteString("\n---")
+	if content != "" {
+		sb.WriteString("\n")
+		sb.WriteString(content)
+	}
+	sb.WriteString("\n")
+
+	if err := os.WriteFile(fullPath, []byte(sb.String()), 0644); err != nil {
+		return nil, err
+	}
+
+	id := fmt.Sprintf("%s#%d", relPath, newIdx)
+	note := &models.GenericNote{
+		TypeID:  td.ID,
+		ID:      id,
+		Fields:  fields,
+		Content: content,
+		Path:    relPath,
+	}
+	s.notes[td.ID] = append(s.notes[td.ID], *note)
+	return note, nil
+}
+
+// replaceEntryContent 替换条目的完整 frontmatter + content
+func (s *GenericNoteService) replaceEntryContent(content string, idx int, fields map[string]interface{}, body string) (string, error) {
+	if idx >= 0 {
+		return s.replaceMultiEntryContent(content, idx, fields, body)
+	}
+	return s.replaceSingleEntryContent(content, fields, body)
+}
+
+func (s *GenericNoteService) replaceSingleEntryContent(content string, fields map[string]interface{}, body string) (string, error) {
+	yamlStr := s.marshalFields(fields)
+
+	sb := strings.Builder{}
+	sb.WriteString("---\n")
+	sb.WriteString(yamlStr)
+	sb.WriteString("\n---")
+	if body != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(body)
+	}
+	sb.WriteString("\n")
+	return sb.String(), nil
+}
+
+func (s *GenericNoteService) replaceMultiEntryContent(content string, idx int, fields map[string]interface{}, body string) (string, error) {
+	blocks := splitFrontmatterBlocks(content)
+	if idx < 0 || idx >= len(blocks) {
+		return "", fmt.Errorf("entry index %d out of range", idx)
+	}
+
+	newBlock, err := s.replaceSingleEntryContent(blocks[idx], fields, body)
+	if err != nil {
+		return "", err
+	}
+	blocks[idx] = strings.TrimSpace(newBlock)
+	return strings.Join(blocks, "\n---\n") + "\n", nil
+}
+
+// removeMultiEntry 删除多条目文件中的指定条目
+func (s *GenericNoteService) removeMultiEntry(content string, idx int) (string, error) {
+	blocks := splitFrontmatterBlocks(content)
+	if idx < 0 || idx >= len(blocks) {
+		return "", fmt.Errorf("entry index %d out of range", idx)
+	}
+	blocks = append(blocks[:idx], blocks[idx+1:]...)
+	if len(blocks) == 0 {
+		return "", nil
+	}
+	return strings.Join(blocks, "\n---\n") + "\n", nil
 }
 
 // matchGenericNote 搜索匹配

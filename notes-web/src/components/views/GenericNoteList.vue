@@ -4,6 +4,7 @@
     :notes="notes"
     :loading="loading"
     @item-click="onItemClick"
+    @saved="loadData"
   />
 
   <!-- 抽屉/弹窗模式的详情浮层 -->

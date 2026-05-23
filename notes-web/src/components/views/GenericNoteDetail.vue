@@ -28,12 +28,29 @@
           <el-icon><ArrowLeft /></el-icon>
           返回列表
         </el-button>
+        <div class="detail-actions">
+          <el-button size="small" @click="handleEdit">
+            <el-icon><Edit /></el-icon>
+            编辑
+          </el-button>
+          <el-popconfirm title="确定要删除这条笔记吗？" @confirm="handleDelete">
+            <template #reference>
+              <el-button size="small" type="danger">
+                <el-icon><Delete /></el-icon>
+                删除
+              </el-button>
+            </template>
+          </el-popconfirm>
+        </div>
       </div>
 
       <!-- 标题 -->
       <h1 class="detail-title">
         {{ type?.Label || typeId }}详情
       </h1>
+
+      <!-- 编辑器 -->
+      <NoteEditor ref="editorRef" :type-id="typeId" @saved="onNoteEdited" />
 
       <!-- 字段信息 -->
       <div class="detail-fields">
@@ -84,11 +101,14 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { ArrowLeft, Close } from '@element-plus/icons-vue'
+import { ArrowLeft, Close, Edit, Delete } from '@element-plus/icons-vue'
 import { useSchema, getFieldLabel } from '@/composables/useSchema'
-import { getNoteDetail } from '@/api/notesV2'
+import { getNoteDetail, deleteNote } from '@/api/notesV2'
+import { useRouter } from 'vue-router'
 import FieldRenderer from '@/components/fields/FieldRenderer.vue'
 import MdRenderer from '@/components/MdRenderer.vue'
+import NoteEditor from '@/components/NoteEditor.vue'
+import { ElMessage } from 'element-plus'
 import type { GenericNote } from '@/types/note'
 import type { TypeDef } from '@/types/schema'
 
@@ -102,9 +122,11 @@ const emit = defineEmits<{
   close: []
 }>()
 
+const router = useRouter()
 const handleClose = () => emit('close')
 
 const { getType, loadSchema } = useSchema()
+const editorRef = ref<InstanceType<typeof NoteEditor>>()
 
 const loading = ref(true)
 const error = ref('')
@@ -168,6 +190,31 @@ watch(
   () => [props.typeId, props.noteId],
   async () => { await loadDetail() },
 )
+
+function handleEdit() {
+  if (note.value) {
+    editorRef.value?.open(note.value)
+  }
+}
+
+async function handleDelete() {
+  try {
+    await deleteNote(props.typeId, props.noteId)
+    ElMessage.success('笔记已删除')
+    if (props.overlay) {
+      emit('close')
+    } else {
+      router.push({ name: 'GenericList', params: { typeId: props.typeId } })
+    }
+  } catch (e) {
+    ElMessage.error('删除失败')
+  }
+}
+
+async function onNoteEdited() {
+  ElMessage.success('笔记已更新')
+  await loadDetail()
+}
 </script>
 
 <style scoped>
@@ -179,7 +226,16 @@ watch(
   padding: 0;
   max-width: none;
 }
-.detail-back { margin-bottom: 12px; }
+.detail-back {
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.detail-actions {
+  display: flex;
+  gap: 8px;
+}
 .detail-title { margin-bottom: 20px; }
 .detail-fields {
   display: grid;

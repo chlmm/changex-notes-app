@@ -100,8 +100,8 @@ onMounted(async () => {
   padding: 20px;
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
-  border-bottom: 1px solid #e4e7ed;
+  color: var(--el-text-color-primary);
+  border-bottom: 1px solid var(--el-border-color-light);
 }
 
 .sidebar-menu {
@@ -111,6 +111,6 @@ onMounted(async () => {
 
 .sidebar-footer {
   padding: 16px 20px;
-  border-top: 1px solid #e4e7ed;
+  border-top: 1px solid var(--el-border-color-light);
 }
 </style>

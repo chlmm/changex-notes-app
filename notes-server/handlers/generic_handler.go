@@ -89,3 +89,99 @@ func (h *GenericHandler) Search(c *gin.Context) {
 	results := h.service.Search(query)
 	c.JSON(http.StatusOK, results)
 }
+
+// UpdateField 更新笔记单个字段
+// PUT /api/v2/notes/:typeId/field
+// Body: {"id": "xxx", "field": "status", "value": "done"}
+func (h *GenericHandler) UpdateField(c *gin.Context) {
+	typeID := c.Param("typeId")
+
+	var req struct {
+		ID    string `json:"id" binding:"required"`
+		Field string `json:"field" binding:"required"`
+		Value string `json:"value" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.service.UpdateField(typeID, req.ID, req.Field, req.Value); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// CreateNote 创建笔记
+// POST /api/v2/notes/:typeId
+func (h *GenericHandler) CreateNote(c *gin.Context) {
+	typeID := c.Param("typeId")
+
+	var req struct {
+		Fields  map[string]interface{} `json:"fields" binding:"required"`
+		Content string                 `json:"content"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	note, err := h.service.CreateNote(typeID, req.Fields, req.Content)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, note)
+}
+
+// UpdateNote 更新笔记
+// PUT /api/v2/notes/:typeId/*id
+func (h *GenericHandler) UpdateNote(c *gin.Context) {
+	typeID := c.Param("typeId")
+	id := c.Param("id")
+
+	// *id 包含前导 /，需要去掉；URL-decode 处理 # 等特殊字符
+	id = strings.TrimPrefix(id, "/")
+	if decoded, err := url.QueryUnescape(id); err == nil {
+		id = decoded
+	}
+
+	var req struct {
+		Fields  map[string]interface{} `json:"fields"`
+		Content string                 `json:"content"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.service.UpdateNote(typeID, id, req.Fields, req.Content); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// DeleteNote 删除笔记
+// DELETE /api/v2/notes/:typeId/*id
+func (h *GenericHandler) DeleteNote(c *gin.Context) {
+	typeID := c.Param("typeId")
+	id := c.Param("id")
+
+	// *id 包含前导 /，需要去掉；URL-decode 处理 # 等特殊字符
+	id = strings.TrimPrefix(id, "/")
+	if decoded, err := url.QueryUnescape(id); err == nil {
+		id = decoded
+	}
+
+	if err := h.service.DeleteNote(typeID, id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}

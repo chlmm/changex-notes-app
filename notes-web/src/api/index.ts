@@ -62,3 +62,17 @@ export async function checkSuccess(endpoint: string, options?: RequestInit): Pro
     return false
   }
 }
+
+/**
+ * 基础 DELETE 请求
+ */
+export async function deleteAPI<T>(endpoint: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${endpoint}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  if (!res.ok) {
+    throw new Error(`API error: ${res.status}`)
+  }
+  return res.json()
+}

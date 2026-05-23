@@ -43,6 +43,12 @@ func Setup(cfg *config.Config) *gin.Engine {
 		api.GET("/v2/notes/:typeId/filters/:field", genericHandler.GetFilters)
 		api.GET("/v2/notes/:typeId/detail/*id", genericHandler.GetNoteDetail)
 		api.GET("/v2/search", genericHandler.Search)
+
+		// 写操作
+		api.POST("/v2/notes/:typeId", genericHandler.CreateNote)
+		api.PUT("/v2/notes/:typeId/*id", genericHandler.UpdateNote)
+		api.DELETE("/v2/notes/:typeId/*id", genericHandler.DeleteNote)
+		api.PUT("/v2/field/:typeId", genericHandler.UpdateField)
 	}
 
 	// 静态文件服务（前端）

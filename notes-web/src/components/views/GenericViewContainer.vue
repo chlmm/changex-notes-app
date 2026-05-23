@@ -8,6 +8,10 @@
           {{ type?.Label || typeId }}
         </h2>
         <span class="header-count">{{ flatNotes.length }} 条</span>
+        <el-button size="small" type="primary" @click="handleCreate">
+          <el-icon><Plus /></el-icon>
+          新建
+        </el-button>
       </div>
       <div class="header-right">
         <OpenModeSelector v-model="openMode" />
@@ -15,6 +19,9 @@
         <ViewSwitcher v-model="currentView" :available-views="availableViews" />
       </div>
     </div>
+
+    <!-- 编辑器 -->
+    <NoteEditor ref="editorRef" :type-id="typeId" @saved="onNoteSaved" />
 
     <!-- 加载中 -->
     <el-skeleton v-if="loading" :rows="8" animated />
@@ -62,6 +69,7 @@
       :title-field="'title'"
       :tag-field="kanbanGroupField"
       @card-click="onItemClick"
+      @card-move="onCardMove"
     />
 
     <!-- 时间线视图 -->
@@ -113,9 +121,13 @@ import TimelineView from '@/components/dashboard/widgets/TimelineView.vue'
 import ChartView, { type ChartDataItem } from '@/components/dashboard/widgets/ChartView.vue'
 import TreeView, { type TreeNodeConfig } from '@/components/dashboard/widgets/TreeView.vue'
 import GenericNoteCard from './GenericNoteCard.vue'
+import NoteEditor from '@/components/NoteEditor.vue'
 import { useSchema } from '@/composables/useSchema'
+import { updateNoteField } from '@/api/notesV2'
 import type { GenericNote } from '@/types/note'
 import type { TypeDef } from '@/types/schema'
+import { ElMessage } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 
 // ========================
 // Flat adapter: GenericNote → old view compatible flat object
@@ -176,10 +188,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   itemClick: [note: GenericNote]
   nodeClick: [node: TreeNodeConfig]
+  saved: []
 }>()
 
 const route = useRoute()
 const { getType } = useSchema()
+const editorRef = ref<InstanceType<typeof NoteEditor>>()
 
 // ========================
 // State
@@ -444,6 +458,32 @@ function onNodeClick(data: TreeNodeConfig) {
     emit('itemClick', data._raw as unknown as GenericNote)
   }
   emit('nodeClick', data)
+}
+
+async function onCardMove(item: FlatNote, _fromColumn: any, toColumn: any) {
+  const field = kanbanGroupField.value
+  const newValue = toColumn.statusValue || toColumn.id
+  try {
+    // 乐观更新：立即更新本地数据
+    const note = item._raw
+    if (note) {
+      note.fields[field] = newValue
+    }
+    item[field] = newValue
+
+    await updateNoteField(props.typeId, item._id, field, newValue)
+    ElMessage.success('状态已更新')
+  } catch (e) {
+    ElMessage.error('更新失败，请重试')
+  }
+}
+
+function handleCreate() {
+  editorRef.value?.open()
+}
+
+function onNoteSaved() {
+  emit('saved')
 }
 
 // ========================

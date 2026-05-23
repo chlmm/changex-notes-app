@@ -10,6 +10,14 @@
             <el-icon><Notebook /></el-icon>
             <span>笔记库</span>
           </div>
+          <div class="header-center">
+            <el-button text class="theme-toggle" @click="toggleTheme">
+              <el-icon :size="20">
+                <Sunny v-if="isDark" />
+                <Moon v-else />
+              </el-icon>
+            </el-button>
+          </div>
           <div class="header-search">
             <el-input
               v-model="searchQuery"
@@ -51,10 +59,12 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Sidebar from '@/components/Sidebar.vue'
 import { useNotesStore } from '@/stores/notes'
+import { useTheme } from '@/composables/useTheme'
 import type { GenericNote } from '@/types/note'
 
 const router = useRouter()
 const notesStore = useNotesStore()
+const { isDark, toggleTheme } = useTheme()
 
 const searchQuery = ref('')
 const searchResults = ref<GenericNote[]>([])
@@ -103,14 +113,14 @@ document.addEventListener('click', (e) => {
 <style scoped>
 .app-container { height: 100%; }
 .sidebar {
-  background: #fff;
-  border-right: 1px solid #e4e7ed;
+  background: var(--el-bg-color);
+  border-right: 1px solid var(--el-border-color-light);
   height: 100vh;
   overflow-y: auto;
 }
 .header {
-  background: #fff;
-  border-bottom: 1px solid #e4e7ed;
+  background: var(--el-bg-color);
+  border-bottom: 1px solid var(--el-border-color-light);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -123,7 +133,18 @@ document.addEventListener('click', (e) => {
   gap: 8px;
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: var(--el-text-color-primary);
+}
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.theme-toggle {
+  color: var(--el-text-color-secondary);
+}
+.theme-toggle:hover {
+  color: var(--el-color-primary);
 }
 .header-search { position: relative; width: 300px; }
 .search-panel {
@@ -131,8 +152,8 @@ document.addEventListener('click', (e) => {
   top: 100%;
   left: 0;
   right: 0;
-  background: #fff;
-  border: 1px solid #e4e7ed;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-light);
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   max-height: 400px;
@@ -142,21 +163,21 @@ document.addEventListener('click', (e) => {
 .search-item {
   padding: 12px 16px;
   cursor: pointer;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 .search-item:last-child { border-bottom: none; }
-.search-item:hover { background: #f5f7fa; }
+.search-item:hover { background: var(--el-fill-color-light); }
 .result-header {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
 }
-.result-title { font-size: 14px; font-weight: 500; color: #303133; }
+.result-title { font-size: 14px; font-weight: 500; color: var(--el-text-color-primary); }
 .result-snippet {
   margin: 0;
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   line-height: 1.5;
   overflow: hidden;
   text-overflow: ellipsis;
