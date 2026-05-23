@@ -5,6 +5,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import MarkdownIt from 'markdown-it'
+import taskLists from 'markdown-it-task-lists'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 import katex from 'katex'
@@ -32,6 +33,9 @@ const md: MarkdownIt = new MarkdownIt({
     return `<pre class="hljs"><code>${md.utils.escapeHtml(str)}</code></pre>`
   },
 })
+
+// 注册任务列表插件
+md.use(taskLists, { enabled: true, label: true })
 
 // 渲染内容
 const renderedContent = computed(() => {
@@ -182,5 +186,20 @@ watch(() => props.content, () => {
   margin: 16px 0;
   overflow-x: auto;
   padding: 8px 0;
+}
+
+/* 任务列表 */
+.markdown-body :deep(.task-list-item) {
+  list-style: none;
+  margin-left: -24px;
+}
+.markdown-body :deep(.task-list-item input[type="checkbox"]) {
+  margin-right: 8px;
+  accent-color: var(--el-color-primary);
+  cursor: pointer;
+}
+.markdown-body :deep(.task-list-item.checked > p) {
+  text-decoration: line-through;
+  color: #909399;
 }
 </style>

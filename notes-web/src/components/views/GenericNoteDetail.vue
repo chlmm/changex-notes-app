@@ -58,7 +58,9 @@
             :label="sf.label"
             :name="sf.key"
           >
-            <div class="subfile-content" v-html="renderMarkdown(sf.content)" />
+          <div class="subfile-content">
+            <MdRenderer :content="sf.content" />
+          </div>
           </el-tab-pane>
         </el-tabs>
       </div>
@@ -67,7 +69,9 @@
       <div v-if="note.content" class="detail-body">
         <el-divider />
         <h3>正文</h3>
-        <div class="body-content" v-html="renderMarkdown(note.content)" />
+        <div class="body-content">
+          <MdRenderer :content="note.content" />
+        </div>
       </div>
     </div>
   </div>
@@ -79,25 +83,9 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 import { useSchema, getFieldLabel } from '@/composables/useSchema'
 import { getNoteDetail } from '@/api/notesV2'
 import FieldRenderer from '@/components/fields/FieldRenderer.vue'
+import MdRenderer from '@/components/MdRenderer.vue'
 import type { GenericNote } from '@/types/note'
 import type { TypeDef } from '@/types/schema'
-
-// 简单 markdown 渲染（不带 highlight.js，轻量）
-function renderMarkdown(text: string): string {
-  if (!text) return ''
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/^### (.+)$/gm, '<h4>$1</h4>')
-    .replace(/^## (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^# (.+)$/gm, '<h2>$1</h2>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/^\- (.+)$/gm, '<li>$1</li>')
-    .replace(/\n\n/g, '<br><br>')
-}
 
 const props = defineProps<{
   typeId: string
