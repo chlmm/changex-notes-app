@@ -90,6 +90,7 @@
       :data="treeData"
       :title-field="'title'"
       :desc-field="listDescField"
+      :show-preview="false"
       @node-click="onNodeClick"
     />
 

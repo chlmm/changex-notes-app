@@ -1,8 +1,8 @@
 <template>
   <div class="tree-view">
-    <el-row :gutter="20">
-      <!-- 左侧树形导航 -->
-      <el-col :span="leftSpan">
+    <el-row :gutter="showPreview ? 20 : 0">
+      <!-- 树形导航（无预览时满宽） -->
+      <el-col :span="showPreview ? leftSpan : 24">
         <el-card class="tree-card" :style="{ height: height }">
           <!-- 搜索框 -->
           <el-input
@@ -51,8 +51,8 @@
         </el-card>
       </el-col>
 
-      <!-- 右侧内容区 -->
-      <el-col :span="24 - leftSpan">
+      <!-- 右侧内容区（可选） -->
+      <el-col v-if="showPreview" :span="24 - leftSpan">
         <el-card class="content-card" :style="{ height: height }">
           <template v-if="selectedItem">
             <slot name="content" :item="selectedItem" :data="selectedItem">
@@ -99,6 +99,7 @@ interface Props {
   loading?: boolean
   height?: string
   leftSpan?: number
+  showPreview?: boolean
   nodeKey?: string
   labelField?: string
   childrenField?: string
@@ -119,6 +120,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   height: 'calc(100vh - 180px)',
   leftSpan: 6,
+  showPreview: true,
   nodeKey: 'id',
   labelField: 'label',
   childrenField: 'children',
