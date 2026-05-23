@@ -104,12 +104,26 @@
           
           <!-- 标签类型 -->
           <template v-else-if="col.type === 'tag'">
-            <el-tag
-              :type="getTagType(row, col)"
-              :size="col.tagSize || 'small'"
-            >
-              {{ formatValue(row, col) }}
-            </el-tag>
+            <span class="tag-cell">
+              <template v-if="Array.isArray(row[col.prop])">
+                <el-tag
+                  v-for="(tag, idx) in row[col.prop]"
+                  :key="idx"
+                  :type="getTagType(row, col)"
+                  :size="col.tagSize || 'small'"
+                >
+                  {{ String(tag) }}
+                </el-tag>
+              </template>
+              <template v-else>
+                <el-tag
+                  :type="getTagType(row, col)"
+                  :size="col.tagSize || 'small'"
+                >
+                  {{ formatValue(row, col) }}
+                </el-tag>
+              </template>
+            </span>
           </template>
           
           <!-- 链接类型 -->
@@ -479,5 +493,11 @@ defineExpose({
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+.tag-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 </style>

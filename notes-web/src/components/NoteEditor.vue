@@ -48,6 +48,17 @@
               v-model="form.fields[hint.key]"
               placeholder="用逗号分隔多个标签"
             />
+            <div v-if="form.fields[hint.key]" class="tag-preview">
+              <el-tag
+                v-for="(tag, idx) in splitTags(form.fields[hint.key])"
+                :key="idx"
+                size="small"
+                type="info"
+                class="preview-tag"
+              >
+                {{ tag }}
+              </el-tag>
+            </div>
           </template>
           <template v-else>
             <el-input v-model="form.fields[hint.key]" />
@@ -124,10 +135,30 @@ const fieldHints = computed<FieldHint[]>(() => {
   }))
 })
 
+// 将 tags 数组转为逗号分隔字符串用于输入框显示
+function tagsToString(v: unknown): string {
+  if (Array.isArray(v)) return v.map(String).join(',')
+  return String(v ?? '')
+}
+
+// 将逗号分隔的字符串 split 为标签数组（供预览使用）
+function splitTags(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map(String)
+  if (typeof v === 'string') return v.split(',').map(s => s.trim()).filter(Boolean)
+  return []
+}
+
 function open(note?: GenericNote) {
   if (note) {
     editNote.value = note
-    form.fields = { ...note.fields }
+    const fields: Record<string, any> = { ...note.fields }
+    // 将数组类型的 tags 转为逗号分隔字符串，方便输入框编辑
+    for (const h of fieldHints.value) {
+      if (h.ui === 'tags' && Array.isArray(fields[h.key])) {
+        fields[h.key] = tagsToString(fields[h.key])
+      }
+    }
+    form.fields = fields
     form.content = note.content || ''
   } else {
     editNote.value = null
@@ -151,11 +182,15 @@ function resetForm() {
 async function handleSave() {
   saving.value = true
   try {
-    // 清理空值
+    // 清理空值 & 将 tags 字符串转为数组
     const fields: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(form.fields)) {
-      if (v !== '' && v !== null && v !== undefined) {
-        fields[k] = v
+    for (const h of fieldHints.value) {
+      const v = form.fields[h.key]
+      if (v === '' || v === null || v === undefined) continue
+      if (h.ui === 'tags' && typeof v === 'string') {
+        fields[h.key] = v.split(',').map((s: string) => s.trim()).filter(Boolean)
+      } else {
+        fields[h.key] = v
       }
     }
 
@@ -182,5 +217,16 @@ defineExpose({ open })
 <style scoped>
 .el-form-item {
   margin-bottom: 12px;
+}
+
+.tag-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.preview-tag {
+  margin-right: 0;
 }
 </style>
