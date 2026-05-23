@@ -41,6 +41,14 @@ export interface UITypeDef {
   Props: Record<string, unknown> | null
 }
 
+// 视图配置
+export interface ViewConfig {
+  Enabled?: string[]      // explicit: ['table','grid','kanban','timeline','chart','tree']
+  KanbanField?: string    // field for kanban grouping (default: first select field)
+  TimelineField?: string  // field for timeline sorting (default: first date field)
+  ChartGroupBy?: string   // field for chart aggregation (default: first select field)
+}
+
 // 笔记类型定义
 export interface TypeDef {
   ID: string
@@ -54,6 +62,7 @@ export interface TypeDef {
   MultiEntry: boolean
   FrontmatterOptional: boolean
   ResourceDirs: string[] | null
+  Views: ViewConfig | null
 }
 
 // Schema 元信息

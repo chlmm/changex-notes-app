@@ -42,6 +42,15 @@ type TypeDef struct {
 	MultiEntry          bool                 `yaml:"multi_entry"`
 	FrontmatterOptional bool                 `yaml:"frontmatter_optional"`
 	ResourceDirs        []string             `yaml:"resource_dirs"`
+	Views               *ViewConfig          `yaml:"views"`
+}
+
+// ViewConfig 视图配置
+type ViewConfig struct {
+	Enabled       []string `yaml:"enabled"`
+	KanbanField   string   `yaml:"kanban_field"`
+	TimelineField string   `yaml:"timeline_field"`
+	ChartGroupBy  string   `yaml:"chart_group_by"`
 }
 
 // PathDef 扫描路径定义
