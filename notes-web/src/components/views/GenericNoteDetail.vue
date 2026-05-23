@@ -83,7 +83,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ArrowLeft, Close } from '@element-plus/icons-vue'
 import { useSchema, getFieldLabel } from '@/composables/useSchema'
 import { getNoteDetail } from '@/api/notesV2'
@@ -142,8 +142,10 @@ const subFiles = computed(() => {
     }))
 })
 
-onMounted(async () => {
-  await loadSchema()
+async function loadDetail() {
+  loading.value = true
+  error.value = ''
+  note.value = null
   try {
     note.value = await getNoteDetail(props.typeId, props.noteId)
     if (subFiles.value.length) {
@@ -154,7 +156,18 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+}
+
+onMounted(async () => {
+  await loadSchema()
+  await loadDetail()
 })
+
+// 同路由参数变化（如 /book/detail?id=1 → /game/detail?id=2），Vue Router 复用组件不 remount
+watch(
+  () => [props.typeId, props.noteId],
+  async () => { await loadDetail() },
+)
 </script>
 
 <style scoped>

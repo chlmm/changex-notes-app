@@ -26,7 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSchema } from '@/composables/useSchema'
 import { useNoteViewSettings } from '@/composables/useNoteViewSettings'
@@ -55,8 +55,9 @@ const detailTitle = computed(() => {
   return String(fields['title'] || fields['source.title'] || fields['source.name'] || fields['name'] || '详情')
 })
 
-onMounted(async () => {
-  await loadSchema()
+async function loadData() {
+  loading.value = true
+  notes.value = []
   try {
     notes.value = await getNoteList(props.typeId)
   } catch (e) {
@@ -64,6 +65,16 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+}
+
+onMounted(async () => {
+  await loadSchema()
+  await loadData()
+})
+
+// 同路由参数变化（如 /book → /game），Vue Router 复用组件不 remount，需要 watch 重新加载
+watch(() => props.typeId, async () => {
+  await loadData()
 })
 
 async function loadDetailData(item: unknown): Promise<GenericNote> {
