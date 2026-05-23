@@ -499,20 +499,52 @@ func (s *GenericNoteService) updateSingleEntryField(content, field, value string
 }
 
 func (s *GenericNoteService) updateMultiEntryField(content string, idx int, field, value string) (string, error) {
+	// 解析全部 entries（和 loadMultiEntry 用同样的方法），过滤掉 body block
+	type entryData struct {
+		fm   map[string]interface{}
+		body string
+	}
+	var entries []entryData
+
 	blocks := splitFrontmatterBlocks(content)
-	if idx < 0 || idx >= len(blocks) {
-		return "", fmt.Errorf("entry index %d out of range (total %d entries)", idx, len(blocks))
+	for _, block := range blocks {
+		fm, body, err := parseYAMLFrontmatter(block)
+		if err != nil || isEmptyEntry(fm) {
+			continue
+		}
+		entries = append(entries, entryData{fm, body})
 	}
 
-	block := strings.TrimSpace(blocks[idx])
-	updated, err := s.updateSingleEntryField(block, field, value)
-	if err != nil {
-		return "", fmt.Errorf("update entry %d: %w", idx, err)
+	if idx < 0 || idx >= len(entries) {
+		return "", fmt.Errorf("entry index %d out of range (total %d entries)", idx, len(entries))
 	}
 
-	blocks[idx] = strings.TrimSpace(updated)
-	// 重新拼接：每两个条目之间用 \n---\n 分隔
-	return strings.Join(blocks, "\n---\n") + "\n", nil
+	// 更新目标 entry 的字段
+	if err := setNestedFieldWithUnnesting(entries[idx].fm, field, value); err != nil {
+		return "", err
+	}
+
+	// 全部重新序列化（跳过 body block —— 恢复干净的文件结构）
+	var sb strings.Builder
+	for i, e := range entries {
+		if i > 0 {
+			sb.WriteString("\n\n")
+		}
+		unnested := unnestMap(e.fm)
+		yamlBytes, yerr := yaml.Marshal(unnested)
+		if yerr != nil {
+			return "", fmt.Errorf("entry %d marshal: %w", i, yerr)
+		}
+		sb.WriteString("---\n")
+		sb.WriteString(strings.TrimSpace(string(yamlBytes)))
+		sb.WriteString("\n---")
+		if e.body != "" {
+			sb.WriteString("\n")
+			sb.WriteString(e.body)
+		}
+	}
+	sb.WriteString("\n")
+	return sb.String(), nil
 }
 
 // setNestedFieldWithUnnesting 设置嵌套字段（支持 "parent.child" 表示法）

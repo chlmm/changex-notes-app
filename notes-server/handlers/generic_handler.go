@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -107,6 +108,7 @@ func (h *GenericHandler) UpdateField(c *gin.Context) {
 	}
 
 	if err := h.service.UpdateField(typeID, req.ID, req.Field, req.Value); err != nil {
+		log.Printf("UpdateField error: type=%s id=%s field=%s value=%s err=%v", typeID, req.ID, req.Field, req.Value, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

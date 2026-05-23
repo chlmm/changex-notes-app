@@ -474,6 +474,7 @@ async function onCardMove(item: FlatNote, _fromColumn: any, toColumn: any) {
     await updateNoteField(props.typeId, item._id, field, newValue)
     ElMessage.success('状态已更新')
   } catch (e) {
+    console.error('cardMove update failed:', e)
     ElMessage.error('更新失败，请重试')
   }
 }
