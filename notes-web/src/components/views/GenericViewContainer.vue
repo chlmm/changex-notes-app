@@ -124,6 +124,24 @@ interface FlatNote {
   [key: string]: unknown
 }
 
+// 从扁平化字段中自动检测"标题"字段
+// 多条目笔记的标题通常隐藏在 source.title / source.name 中
+function detectTitle(fields: Record<string, unknown>): string {
+  // 优先直接用 title
+  if (fields['title']) return String(fields['title'])
+  // 多条目类型：source.title
+  if (fields['source.title']) return String(fields['source.title'])
+  // GitHub 类型：source.name
+  if (fields['source.name']) return String(fields['source.name'])
+  // quote 类型：取前 30 字
+  if (fields['quote']) {
+    const q = String(fields['quote'])
+    return q.length > 30 ? q.slice(0, 30) + '...' : q
+  }
+  // 兜底
+  return ''
+}
+
 function flattenNote(note: GenericNote): FlatNote {
   const flat: FlatNote = {
     _id: note.id,
@@ -131,6 +149,8 @@ function flattenNote(note: GenericNote): FlatNote {
     _path: note.path,
     _updatedAt: note.updatedAt,
     _raw: note,
+    // 注入 title: 让 list/kanban/tree 等视图能找到名称
+    title: detectTitle(note.fields) || note.id,
   }
   // Merge all fields to top level (safe: field keys don't start with _)
   for (const [key, value] of Object.entries(note.fields)) {
@@ -373,23 +393,23 @@ const treeData = computed<TreeNodeConfig[]>(() => {
 
   if (!groupField) {
     // Flat tree: just list all
-    return props.notes.map(n => ({
-      id: n.id,
-      label: String(n.fields['title'] || n.id),
+    return flatNotes.value.map(n => ({
+      id: n._id,
+      label: String(n.title || n._id),
       isLeaf: true,
-      _raw: n,
+      _raw: n._raw,
     }))
   }
 
   const groups: Record<string, TreeNodeConfig[]> = {}
-  for (const note of props.notes) {
-    const key = String(note.fields[groupField] || '其他')
+  for (const note of flatNotes.value) {
+    const key = String(note[groupField] || '其他')
     if (!groups[key]) groups[key] = []
     groups[key].push({
-      id: note.id,
-      label: String(note.fields['title'] || note.id),
+      id: note._id,
+      label: String(note.title || note._id),
       isLeaf: true,
-      _raw: note,
+      _raw: note._raw,
     } as TreeNodeConfig)
   }
 

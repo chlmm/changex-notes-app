@@ -37,7 +37,13 @@ const props = defineProps<{
 defineEmits(['click'])
 
 const title = computed(() =>
-  String(props.note.fields['title'] || props.note.fields['name'] || props.note.id)
+  String(
+    props.note.fields['title'] ||
+    props.note.fields['source.title'] ||
+    props.note.fields['source.name'] ||
+    props.note.fields['name'] ||
+    props.note.id
+  )
 )
 
 const subtitle = computed(() => {

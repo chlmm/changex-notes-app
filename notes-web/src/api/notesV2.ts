@@ -14,9 +14,9 @@ export function getNoteList(typeId: string): Promise<GenericNote[]> {
   return fetchAPI(`/v2/notes/${typeId}`)
 }
 
-// 获取笔记详情（id 可能含 /，后端 /*id 通配捕获）
+// 获取笔记详情（id 可能含 / 和 #，encodeURIComponent 防止被浏览器当 fragment 截断）
 export function getNoteDetail(typeId: string, id: string): Promise<GenericNote> {
-  return fetchAPI(`/v2/notes/${typeId}/detail/${id}`)
+  return fetchAPI(`/v2/notes/${typeId}/detail/${encodeURIComponent(id)}`)
 }
 
 // 获取字段筛选值

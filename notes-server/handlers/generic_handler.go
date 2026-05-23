@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -50,6 +51,11 @@ func (h *GenericHandler) GetNoteDetail(c *gin.Context) {
 
 	// *id 包含前导 /，需要去掉
 	id = strings.TrimPrefix(id, "/")
+
+	// URL-decode：前端用 encodeURIComponent 编码了 # 和 / 等特殊字符
+	if decoded, err := url.QueryUnescape(id); err == nil {
+		id = decoded
+	}
 
 	note, err := h.service.GetDetail(typeID, id)
 	if err != nil {
